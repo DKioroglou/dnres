@@ -6,7 +6,7 @@
 
 ## Usage
 
-### Configuation file
+### Configuration file
 
 `dnres` requires a configuration file. In this file, three sections should be specified: **STRUCTURE**, **DATABASE** and **INFO**. 
 

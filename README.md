@@ -108,6 +108,10 @@ filepath = res.load('dir2', 'foo.csv')
 df = pd.read_csv(filepath, sep='\t')
 ```
 
+## Documentation
+
+For complete package reference visit [dnres.readthedocs](https://dnres.readthedocs.io/en/latest/source/dnres.html).
+
 ## Installation
 
 ```bash

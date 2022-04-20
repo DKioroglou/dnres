@@ -1,5 +1,7 @@
 # dnres: data n results
 
+[![Documentation Status](https://readthedocs.org/projects/pip/badge/?version=stable)](https://pip.pypa.io/en/stable/?badge=stable)
+
 `dnres` is a python package for managing and sharing data and results generated from any type of data analysis. It facilitates modular type of analysis by allowing easy storing and loading of python objects or files across different python scripts.
 
 ## Usage

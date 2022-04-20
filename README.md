@@ -9,7 +9,7 @@
 `dnres` requires a configuration file. In this file, three sections should be specified: **STRUCTURE**, **DATABASE** and **INFO**. 
 
 Example of configuration file with filename `config.ini`:
-```
+```python
 [STRUCTURE]
 dir1 = foo/bar
 dir2 = foo/foo/bar
@@ -22,7 +22,7 @@ description = "This is the description of the analysis related to the data and r
 ```
 
 The configuration file is passed as argument upon instantiation of the `DnRes`
-```
+```python
 from dnres import DnRes
 
 res = DnRes('config.ini')
@@ -40,7 +40,7 @@ Upon instantiation, the following are checked/performed:
 
 Example of storing a list in analytical script `script_01.py` 
 
-```
+```python
 from dnres import DnRes
 
 res = DnRes('config.ini')
@@ -60,7 +60,7 @@ res.store(data=x,
 
 Example of loading stored data from `script_01.py` in `script_02.py`:
 
-```
+```python
 from dnres import DnRes
 
 res = DnRes('config.ini')
@@ -76,7 +76,7 @@ x = res.load('dir1', 'x_var.json')
 
 Example of storing a `.csv` file in analytical script `script_01.py`
 
-```
+```python
 from dnres import DnRes
 
 res = DnRes('config.ini')
@@ -97,7 +97,7 @@ res.store(data=filepath,
 
 Load stored `.csv` file in analytical script `script_02.py`
 
-```
+```python
 from dnres import DnRes
 import pandas as pd
 
@@ -110,7 +110,7 @@ df = pd.read_csv(filepath, sep='\t')
 
 ## Installation
 
-```
+```bash
 pip install dnres
 ```
 

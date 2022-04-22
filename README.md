@@ -120,6 +120,10 @@ For complete package reference visit [dnres.readthedocs](https://dnres.readthedo
 pip install dnres
 ```
 
+## CLI utility
+
+`dnres-cli` can be found [here](https://github.com/DKioroglou/dnres-cli).
+
 ## License
 
 BSD 3

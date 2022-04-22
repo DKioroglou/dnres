@@ -242,7 +242,6 @@ class DnRes:
         overwrite : bool
             Defaults to False. Boolean for overwritting previous data with same filename.
         """
-        serialization_methods = ["json", "pickle"]
 
         if not self.structure.get(directory, False):
             raise KeyError("Specified directory not found in structure.")
@@ -259,6 +258,7 @@ class DnRes:
             datatype = str(type(data))
 
         if serialization:
+            serialization_methods = ["json", "pickle"]
             if serialization not in serialization_methods:
                 raise KeyError(f'Unknown serialization method "{serialization}". Valid methods: {serialization_methods}') 
 
@@ -268,6 +268,9 @@ class DnRes:
             storePath = os.path.join(self.structure[directory], filename)
             if os.path.exists(storePath) and not overwrite:
                 raise FileExistsError(f'Filename "{filename}" exists in "{directory}". Change filename or use overwrite=True.')
+
+            if overwrite:
+                os.remove(storePath)
 
             if serialization == 'json':
                 with open(storePath, 'w') as outf:
@@ -283,12 +286,29 @@ class DnRes:
                 raise Exception('If passed string is filepath pass isfile=True. Otherwise, pass serialization method.')
             if not os.path.exists(data):
                 raise FileNotFoundError(f'File "{data}" was not found.')
-            if os.path.exists(os.path.join(self.structure[directory], os.path.basename(data))) and not overwrite:
-                raise FileExistsError(f'Filename "{os.path.basename(data)}" exists in "{directory}". Use overwrite=True.')
+
+            if os.path.exists(os.path.join(self.structure[directory], filename)) and not overwrite:
+                raise FileExistsError(f'Filename "{filename}" exists in "{directory}". Use overwrite=True.')
+
             if overwrite:
-                shutil.move(data, os.path.join(self.structure[directory], os.path.basename(data)))
-            else:
+                os.remove(os.path.join(self.structure[directory], filename))
+
+            if filename == os.path.basename(data):
                 shutil.move(data, self.structure[directory])
+            else:
+                # Rename data file to dnres.tmp
+                newDataPath = data.replace(os.path.basename(data), 'dnres.tmp')
+                os.rename(data, newDataPath)
+
+                # Move renamed data to structure
+                if os.path.exists(os.path.join(self.structure[directory], 'dnres.tmp')):
+                    os.remove(os.path.join(self.structure[directory], 'dnres.tmp'))
+                shutil.move(newDataPath, self.structure[directory])
+
+                # Rename data as filename
+                previousPath = os.path.join(self.structure[directory], 'dnres.tmp')
+                newPath = os.path.join(self.structure[directory], filename)
+                os.rename(previousPath, newPath)
 
         self._insert_in_db(directory, 
                            date,

@@ -575,11 +575,11 @@ class DnRes:
     def _print_table(self, rows: list) -> None:
         """Prints rich table of given rows. Rows are list of lists or list of tuples."""
         table = Table(box=box.SIMPLE_HEAVY)
-        table.add_column("Date", justify="right", no_wrap=True)
-        table.add_column("Filename", justify="right", no_wrap=True)
-        table.add_column("Datatype", justify="right", no_wrap=True)
-        table.add_column("Description", justify="right", no_wrap=False)
-        table.add_column("Source", justify="right", no_wrap=False)
+        table.add_column("Date", justify="left", no_wrap=True)
+        table.add_column("Filename", justify="left", no_wrap=True)
+        table.add_column("Datatype", justify="left", no_wrap=True)
+        table.add_column("Description", justify="left", no_wrap=False)
+        table.add_column("Source", justify="left", no_wrap=False)
         for row in rows:
             # Make sure only strings are passed to table
             table.add_row(*list(map(str, row)))

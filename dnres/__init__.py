@@ -89,8 +89,8 @@ class DnRes:
             self.description = config['INFO']['description']
 
         for directory, path in config['STRUCTURE'].items():
-            if platform.system() == "Linux" and directory.startswith('~/'):
-                directory = os.path.expanduser(directory)
+            if platform.system() == "Linux" and path.startswith('~/'):
+                path = os.path.expanduser(path)
             self.structure[directory] = path
 
     def _check_structure(self) -> None:

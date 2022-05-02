@@ -84,6 +84,8 @@ class DnRes:
         config.read(self.config_file)
 
         self.db = config['DATABASE']['filename']
+        if platform.system() == "Linux" and self.db.startswith('~/'):
+            self.db = os.path.expanduser(self.db)
 
         if config['INFO'].get("description", False):
             self.description = config['INFO']['description']

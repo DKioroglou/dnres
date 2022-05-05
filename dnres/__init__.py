@@ -500,6 +500,35 @@ class DnRes:
                 c.execute(query, (description, filename))
                 conn.commit()
 
+    def set_datatype(self, datatype: str, directory: str, filename: str) -> None:
+        """
+        Set datatype for existing filename in database based on directory table.
+
+        Parameters
+        ----------
+        datatype : str
+            The new datatype.
+        directory : str
+            Directory table in database where filename is.
+        filename : str
+            Filename in database to update description.
+        """
+        if not self.structure.get(directory, False):
+            raise KeyError('Directory not found in structure.')
+
+        if not self._has_filename(directory, filename):
+            raise FileNotFoundError('Filename not found in database.')
+
+        with contextlib.closing(sqlite3.connect(self.db)) as conn:
+            with contextlib.closing(conn.cursor()) as c:
+                query = f"""
+                UPDATE {directory} 
+                SET datatype=(?) 
+                WHERE filename=(?)
+                """
+                c.execute(query, (datatype, filename))
+                conn.commit()
+
     def set_source(self, source: str, directory: str, filename: str) -> None:
         """
         Set source information for existing filename in database based on directory table.

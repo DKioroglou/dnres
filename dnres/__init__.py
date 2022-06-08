@@ -418,7 +418,7 @@ class DnRes:
         self._delete_from_db(directory, filename)
         print("Done delete.")
 
-    def move(self, filename: str, source: str, destination: str, overwrite: bool=False) -> None:
+    def move(self, filename: str, source: str, destination: str, overwrite: bool=False, db_only: bool=False) -> None:
         """
         Moves data from source to destination. 
 
@@ -428,6 +428,8 @@ class DnRes:
             Directory in structure where data will be moved to.
         overwrite : bool
             Defaults to False. Flag for overwriting data in destination.
+        db_only : boll
+            Defaults to False. Flag for making changes only in database in case file does not exist in structure and is just a reference to path.
         """
 
         filepathSource = os.path.join(self.structure[source], filename)
@@ -447,16 +449,17 @@ class DnRes:
         else:
             self._delete_from_db(destination, filename)
 
-        if not os.path.exists(filepathSource):
-            raise FileNotFoundError("Filename not found in source structure.")
+        if not db_only:
+            if not os.path.exists(filepathSource):
+                raise FileNotFoundError("Filename not found in source structure.")
 
-        if not os.path.exists(filepathDestination):
-                shutil.move(filepathSource, self.structure[destination])
-        else:
-            if not overwrite:
-                raise FileExistsError("Filename exists in destination structure. Pass overwrite=True.")
+            if not os.path.exists(filepathDestination):
+                    shutil.move(filepathSource, self.structure[destination])
             else:
-                shutil.move(filepathSource, filepathDestination)
+                if not overwrite:
+                    raise FileExistsError("Filename exists in destination structure. Pass overwrite=True.")
+                else:
+                    shutil.move(filepathSource, filepathDestination)
 
         with contextlib.closing(sqlite3.connect(self.db)) as conn:
             with contextlib.closing(conn.cursor()) as c:

@@ -266,10 +266,10 @@ class DnRes:
                 pickle.dump(data, outf)
 
         # Avoid duplicate entries from previously stored data with the same path and tag.
-        if not _path_exists_in_db(path):
+        if not self._path_exists_in_db(path):
             datatype = str(type(data))
             self._register_path_in_db(date, path, datatype, description, source)
-        if not _path_has_tag(path, tag):
+        if not self._path_has_tag(path, tag):
             self._register_tag_in_db(tag, path)
 
         print('Data stored.')
@@ -286,7 +286,7 @@ class DnRes:
         path : str
             Path to be tagged.
         """
-        if not _path_has_tag(path, tag):
+        if not self._path_has_tag(path, tag):
             self._register_tag_in_db(tag, path)
 
 

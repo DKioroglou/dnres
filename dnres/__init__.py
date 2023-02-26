@@ -216,7 +216,7 @@ class DnRes:
                     (tag, path) 
                     VALUES (?,?)
                     """
-                c.execute(query, (tag, path)
+                c.execute(query, (tag, path))
                 conn.commit()
 
 

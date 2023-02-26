@@ -10,7 +10,6 @@ import platform
 from rich import box
 from rich.console import Console
 from rich.table import Table
-import shutil
 import sqlite3
 import sys
 from typing import Optional, Any
@@ -19,62 +18,89 @@ import warnings
 class DnRes:
     """
     This class requires the path of a configuration "**.ini**" file for instantiation. 
-    Upon instantiation, it checks for error in the configuration file, it builds the structure and initializes the database.
+    Upon instantiation, it checks if configuration file has errors, if structure path exists and if database path exists.
     """
 
 
     def __init__(self, config_file: str) -> None:
         self.config_file = config_file
-        self.logs = dict()
-        self.logs['structure'] = list()
-        self.logs['db'] = list()
-        self.structure = dict()
+        self.structure = None
         self.db = None
         self.description = None
 
         if not os.path.exists(self.config_file):
             raise FileNotFoundError('Config file does not exist.')
 
-        self._check_config()
+        self._check_config_for_errors()
         self._parse_config()
-        self._check_structure()
-        self._check_db()
+
+        # After parsing the config, the paths for structure and database should exist if they were provided.
+        # If they don't exist, then it is assumed that it is a new analysis.
+
+        if not os.path.exists(self.structure):
+            print('Path "structure" in PATHS does not exist.')
+            print('Create path "structure"?')
+            while True:
+                answer = input('[y/n]> ')
+                if answer == 'y' or answer == 'n':
+                    break
+            if answer == 'y':
+                os.makedirs(self.structure)
+            else:
+                exit("Action cancelled.")
+
+        if not os.path.exists(self.db):
+            print('Path "database" in PATHS does not exist.')
+            print('Create path "database" and initialize database?')
+            while True:
+                answer = input('[y/n]> ')
+                if answer == 'y' or answer == 'n':
+                    break
+            if answer == 'y':
+                if not os.path.exists(os.path.dirname(self.db)):
+                    os.makedirs(os.path.dirname(self.db))
+                self._initialize_db()
+            else:
+                exit("Action cancelled.")
 
         self.console = Console()
 
-    def _check_config(self) -> None:
+
+    def _check_config_for_errors(self) -> None:
         """
-        Expects the config file to have the sections "STRUCTURE" and "DATABASE".
+        Expects the config file to have the sections "PATHS" and "INFO".
         It raises exception if they are missing.
 
-        The "STRUCTURE" section should have directory names as keys and paths as values.
+        The "PATHS" section must include the keys "structure" and "database".
         In LINUX systems the paths may include "~".
-        It raises exception if "STRUCTURE" is empty.
+        It raises exception if "PATHS" is empty and if the keys "structure" and "database" do not exist.
 
-        The "DATABASE" section should have the key "filename" which is a sqlite database. 
-        Missing exception is raised otherwise.
-
-        Directory names from STRUCTURE are stored in database as tables.
+        The "INFO" section must have the key "description". It may have other keys, but it is optional.
+        If "INFO" is empty or if "description" is missing then an exception is raised.
         """
         config = configparser.ConfigParser()
         config.read(self.config_file)
-        if not config.has_section("STRUCTURE"):
-            raise KeyError("STRUCTURE section is missing in configuration file.")
+        if not config.has_section("PATHS"):
+            raise KeyError("PATHS section is missing in configuration file.")
 
-        if not config['STRUCTURE']:
-            raise KeyError("STRUCTURE section in configuration file is empty.")
+        if not config['PATHS']:
+            raise KeyError("PATHS section in configuration file is empty.")
 
-        if not config.has_section("DATABASE"):
-            raise KeyError("DATABASE section is missing in configuration file.")
-
-        if not config['DATABASE'].get("filename", False):
-            raise KeyError('The key "filename" is missing in DATABASE section.')
-
-        if not config.has_section('INFO'):
+        if not config.has_section("INFO"):
             raise KeyError("INFO section is missing in configuration file.")
 
+        if not config['INFO']:
+            raise KeyError("INFO section in configuration file is empty.")
+
+        if not config['PATHS'].get("structure", False):
+            raise KeyError('The key "structure" is missing in PATHS section.')
+
+        if not config['PATHS'].get("database", False):
+            raise KeyError('The key "database" is missing in PATHS section.')
+
         if not config['INFO'].get("description", False):
-            warnings.warn('Key "description" missing in INFO section of config.')
+            raise KeyError('The key "description" is missing in INFO section.')
+
 
     def _parse_config(self) -> None:
         """
@@ -83,63 +109,25 @@ class DnRes:
         config = configparser.ConfigParser()
         config.read(self.config_file)
 
-        self.db = config['DATABASE']['filename']
+        self.structure = config['PATHS']['structure']
+        if platform.system() == "Linux" and self.structure.startswith('~/'):
+            self.structure = os.path.expanduser(self.structure)
+
+        self.db = config['PATHS']['database']
         if platform.system() == "Linux" and self.db.startswith('~/'):
             self.db = os.path.expanduser(self.db)
 
-        if config['INFO'].get("description", False):
-            self.description = config['INFO']['description']
+        self.description = config['INFO']['description']
 
-        for directory, path in config['STRUCTURE'].items():
-            if platform.system() == "Linux" and path.startswith('~/'):
-                path = os.path.expanduser(path)
-            self.structure[directory] = path
-
-    def _check_structure(self) -> None:
-        """
-        Checks if directories in STRUCTURE section exists.
-        Creates the ones that don't exist.
-        """
-        for directory, path in self.structure.items():
-            if not os.path.exists(path):
-                os.makedirs(path)
-                self.logs['structure'].append(f'Created: "{directory}".')
-            else:
-                self.logs['structure'].append(f'OK: "{directory}".')
 
     def _initialize_db(self) -> None:
-        """Creates database based on filename specified in DATABASE."""
+        """Creates database based on the path specified in key database of the section PATHS."""
         with contextlib.closing(sqlite3.connect(self.db)) as conn:
             with contextlib.closing(conn.cursor()) as c:
                 query = """
-                CREATE TABLE paths(
-                directory TEXT,
-                path TEXT
-                )
-                """
-                c.execute(query)
-                conn.commit()
-
-    def _update_directory_path(self, directory: str, path: str) -> None:
-        """Updates the paths of the directories as defined in STRUCTURE"""
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
-                query = """
-                UPDATE paths 
-                SET path=(?) 
-                WHERE directory=(?)
-                """
-                c.execute(query, (path, directory))
-                conn.commit()
-
-    def _create_table(self, table: str) -> None:
-        """Creates table with the name given as directory in STRUCTURE."""
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
-                query = f"""
-                CREATE TABLE {table}(
+                CREATE TABLE data(
                 date INTEGER,
-                filename TEXT,
+                path TEXT,
                 datatype TEXT,
                 description TEXT,
                 source TEXT
@@ -148,469 +136,323 @@ class DnRes:
                 c.execute(query)
                 conn.commit()
 
-    def _get_paths_table_entries(self) -> dict:
-        """Returns registered directories and paths in DATABASE."""
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
                 query = """
-                SELECT * FROM paths 
+                CREATE TABLE tags(
+                tag TEXT,
+                path TEXT
                 """
                 c.execute(query)
-                results = c.fetchall()
-        if results:
-            results = {res[0]:res[1] for res in results}
-        else:
-            results = {}
-        return results
+                conn.commit()
 
-    def _register_directory(self, directory: str, path: str) -> None:
+
+    def _path_exists_in_db(self, path: str) -> bool:
         with contextlib.closing(sqlite3.connect(self.db)) as conn:
             with contextlib.closing(conn.cursor()) as c:
                 query = """
-                INSERT INTO paths (directory, path) 
-                VALUES (?,?)
+                SELECT 1 FROM data
+                WHERE path=(?)
                 """
-                c.execute(query, (directory, path))
-                conn.commit()
-
-    def _check_db(self) -> None:
-        """
-        Creates database if it doesn't exist.
-        Creates tables with names those given as directories in STRUCTURE.
-        Updates directories paths.
-        """
-        if not os.path.exists(self.db):
-            self._initialize_db()
-            self.logs['db'].append('Created: database.')
-        else:
-            self.logs['db'].append('OK: database.')
-
-        paths = self._get_paths_table_entries()
-        for directory, path in self.structure.items():
-            if paths.get(directory, False):
-                if paths[directory] != path:
-                    self._update_directory_path(directory, path)
-                    self.logs['db'].append(f'Updated path: "{directory}".')
-                else:
-                    self.logs['db'].append(f'OK: "{directory}".')
-            else:
-                self._register_directory(directory, path)
-                self.logs['db'].append(f'Registered: "{directory}".')
-                self._create_table(directory)
-                self.logs['db'].append(f'Created table: "{directory}".')
-
-    def _has_filename(self, directory: str, filename: str) -> bool:
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
-                query = f"""
-                SELECT 1 FROM {directory}
-                WHERE filename=(?)
-                """
-                c.execute(query, (filename, ))
+                c.execute(query, (path, ))
                 result = c.fetchone()
         if result:
             return True
         else:
             return False
 
+
+    def _path_has_tag(self, path: str, tag: str) -> bool:
+        with contextlib.closing(sqlite3.connect(self.db)) as conn:
+            with contextlib.closing(conn.cursor()) as c:
+                query = """
+                SELECT 1 FROM tags
+                WHERE path=(?) AND tag=(?)
+                """
+                c.execute(query, (path, tag))
+                result = c.fetchone()
+        if result:
+            return True
+        else:
+            return False
+
+
+    def _register_path_in_db(self, 
+                      date: int,
+                      path: str,
+                      datatype: str,
+                      description: Optional[str],
+                      source: Optional[str]) -> None:
+        """Inserts path in database, or updates database if path already exists."""
+        with contextlib.closing(sqlite3.connect(self.db)) as conn:
+            with contextlib.closing(conn.cursor()) as c:
+                if self._path_exists_in_db(path):
+                    query = """
+                    UPDATE data
+                    SET date=(?),
+                        datatype=(?),
+                        description=(?),
+                        source=(?)
+                    WHERE path=(?)
+                    """
+                else:
+                    query = """
+                    INSERT INTO data 
+                    (date, datatype, description, source, path) 
+                    VALUES (?,?,?,?,?)
+                    """
+                c.execute(query, (date,
+                                  datatype,
+                                  description,
+                                  source,
+                                  path))
+                conn.commit()
+
+
+    def _register_tag_in_db(self, tag: str, path: str) -> None:
+        """Inserts tagged path in database."""
+        with contextlib.closing(sqlite3.connect(self.db)) as conn:
+            with contextlib.closing(conn.cursor()) as c:
+                    query = """
+                    INSERT INTO tags 
+                    (tag, path) 
+                    VALUES (?,?)
+                    """
+                c.execute(query, (tag, path)
+                conn.commit()
+
+
     def store(self, 
             data: Any, 
-            directory: str, 
-            filename: str, 
+            tag: str,
+            path: str, 
             description: Optional[str]=None,
-            source: Optional[str]=None,
-            serialization: Optional[str]=None,
-            isfile: bool=False,
-            overwrite: bool=False) -> None:
+            source: Optional[str]=None:
         """
-        Stores specified data/results. Data can be an object or a filepath. Objects are serialized.
+        Stores specified data. Data is an object. Objects are serialized. Use this method if you want to store lists, dataframes and other similar objects. Note that previously stored data with the same path can be overwritten without warning.
 
         Parameters
         ----------
         data : any
-            Data to store. It could be any kind of object. If data is a string of a file path, pass isfile=True.
-        directory : str
-            The directory to store data.
-        filename : str
-            The filename with extension under which the data will be stored. 
-        source : str, optional
-            Defaults to None. Source of generated data. If None, the name of the calling script will be considered.
+            Data object to store. It could be any kind of object.
+        tag : str
+            Tag of stored data.
+        path : str
+            The path to store data. It should include the filename and have extension json or pickle.
         description : str, optional
             Defaults to None. Short description about the data.
-        serialization : str, optional
-            Defaults to None. Valid serialization methods : json | pickle
-        isfile : bool
-            Defaults to False. Pass True in case data is path to a file.
-        overwrite : bool
-            Defaults to False. Boolean for overwritting previous data with same filename.
+        source : str, optional
+            Defaults to None. Source of generated data. If None, the name of the calling script will be considered.
         """
-
-        if not self.structure.get(directory, False):
-            raise KeyError("Specified directory not found in structure.")
 
         date = int(datetime.today().strftime('%Y%m%d'))
+        serialization_methods = ["json", "pickle"]
 
-        if isfile:
-            if '.' in data:
-                datatype = data.split('.')[-1]
-            else:
-                datatype = 'unknown'
-                warnings.warn("Filetype could not be determined for file.")
-        else:
+        _, serialization = os.path.splitext(path)
+        serialization = serialization.replace(".", '')
+
+        if serialization not in serialization_methods:
+            raise KeyError(f'Unknown serialization method "{serialization}". Valid methods: {serialization_methods}') 
+
+        storePath = os.path.join(self.structure, path)
+
+        if serialization == 'json':
+            with open(storePath, 'w') as outf:
+                json.dump(data, outf)
+        elif serialization == 'pickle':
+            with open(storePath, 'wb') as outf:
+                pickle.dump(data, outf)
+
+        # Avoid duplicate entries from previously stored data with the same path and tag.
+        if not _path_exists_in_db(path):
             datatype = str(type(data))
+            self._register_path_in_db(date, path, datatype, description, source)
+        if not _path_has_tag(path, tag):
+            self._register_tag_in_db(tag, path)
 
-        if serialization:
-            serialization_methods = ["json", "pickle"]
-            if serialization not in serialization_methods:
-                raise KeyError(f'Unknown serialization method "{serialization}". Valid methods: {serialization_methods}') 
+        print('Data stored.')
 
-            if not filename.endswith(f".{serialization}"):
-                filename = f"{filename}.{serialization}"
-
-            storePath = os.path.join(self.structure[directory], filename)
-            if os.path.exists(storePath) and not overwrite:
-                raise FileExistsError(f'Filename "{filename}" exists in "{directory}". Change filename or use overwrite=True.')
-
-            if overwrite:
-                os.remove(storePath)
-
-            if serialization == 'json':
-                with open(storePath, 'w') as outf:
-                    json.dump(data, outf)
-            elif serialization == 'pickle':
-                with open(storePath, 'wb') as outf:
-                    pickle.dump(data, outf)
-        else:
-            # data is assumed a path to file
-            if not isinstance(data, str):
-                raise TypeError('Data is not a file. Apply serialization method.')
-            if not isfile:
-                raise Exception('If passed string is filepath pass isfile=True. Otherwise, pass serialization method.')
-            if not os.path.exists(data):
-                raise FileNotFoundError(f'File "{data}" was not found.')
-
-            if os.path.exists(os.path.join(self.structure[directory], filename)) and not overwrite:
-                raise FileExistsError(f'Filename "{filename}" exists in "{directory}". Use overwrite=True.')
-
-            if overwrite:
-                os.remove(os.path.join(self.structure[directory], filename))
-
-            if filename == os.path.basename(data):
-                shutil.move(data, self.structure[directory])
-            else:
-                # Rename data file to dnres.tmp
-                newDataPath = data.replace(os.path.basename(data), 'dnres.tmp')
-                os.rename(data, newDataPath)
-
-                # Move renamed data to structure
-                if os.path.exists(os.path.join(self.structure[directory], 'dnres.tmp')):
-                    os.remove(os.path.join(self.structure[directory], 'dnres.tmp'))
-                shutil.move(newDataPath, self.structure[directory])
-
-                # Rename data as filename
-                previousPath = os.path.join(self.structure[directory], 'dnres.tmp')
-                newPath = os.path.join(self.structure[directory], filename)
-                os.rename(previousPath, newPath)
-
-        self._insert_in_db(directory, 
-                           date,
-                           filename,
-                           datatype,
-                           description,
-                           source)
-        print('Done store.')
-
-    def load(self, directory: str, filename: str) -> Any:
+    
+    def tag(self, tag: str, path: str) -> None:
         """
-        Loads data/results from specified directory stored as filename. If filename is not serialized object, it returns the path of the filename.
+        Add tag for given path.
 
         Parameters
         ----------
-        directory : str
-            Directory as defined in structure where data/results were stored.
-        filename : str
-            The filename under which data/results where stored.
+        tag : str
+            Tag to add for path. 
+        path : str
+            Path to be tagged.
+        """
+        if not _path_has_tag(path, tag):
+            self._register_tag_in_db(tag, path)
+
+
+    def set_info(self, 
+            path: str, 
+            datatype: Optional[str]=None,
+            description: Optional[str]=None,
+            source: Optional[str]=None):
+        """
+        Add or update info for path if info is not none.
+
+        Parameters
+        ----------
+        path : str
+            Path to update or add info.
+        datatype : str, optional 
+            Defaults to None. Datatype of path. Must be provided if path does not exist in database.
+        description : str, optional 
+            Defaults to None. Description of path. Must be provided if path does not exist in database.
+        source : str, optional 
+            Defaults to None. Source of path. Must be provided if path does not exist in database.
+        """
+
+        if self._path_exists_in_db(path):
+            with contextlib.closing(sqlite3.connect(self.db)) as conn:
+                with contextlib.closing(conn.cursor()) as c:
+                    for col, value in zip(['datatype', 'description', 'source'], [datatype, description, source]):
+                        if value:
+                            query = f"""
+                            UPDATE data 
+                            SET {col}=(?) 
+                            WHERE path=(?)
+                            """
+                            c.execute(query, (value, path))
+                            conn.commit()
+        else:
+            if not datatype or not description or not source:
+                raise KeyError(f'Path does not exist in database. You must provide datatype, description and source.') 
+            date = int(datetime.today().strftime('%Y%m%d'))
+            self._register_path_in_db(date, path, datatype, description, source)
+
+
+    def load(self, path: str) -> Any:
+        """
+        Loads data from specified stored path. If path is not serialized object, it returns the path.
+
+        Parameters
+        ----------
+        path : str
+            The path of the stored data.
 
         Returns
         -------
-        Python object, if filename has the extension json or pickle.
-        Filepath, if filename is not a serialized python object.
+        Python object, if path has the extension json or pickle. Otherwise, it returns the path.
         """
 
-        if not self.structure.get(directory, False):
-            raise KeyError('Directory not found in structure.')
+        storePath = os.path.join(self.structure, path)
 
-        if not self._has_filename(directory, filename):
-            raise FileNotFoundError('Filename not found in database.')
+        if not self._path_exists_in_db(path):
+            raise FileNotFoundError('Path not found in database.')
 
-        if not os.path.exists(os.path.join(self.structure[directory], filename)):
-            raise FileNotFoundError('Filename not found in structure.')
+        is_serialized = False
+        if path.endswith('.json') or path.endswith('.pickle'):
+            is_serialized = True
 
-        if filename.endswith('.json'):
-            with open(os.path.join(self.structure[directory], filename), 'r') as inf:
-                return json.load(inf)
-        elif filename.endswith('.pickle'):
-            with open(os.path.join(self.structure[directory], filename), 'rb') as inf:
-                return pickle.load(inf)
-        else:
-            return os.path.join(self.structure[directory], filename)
-
-    def _delete_from_db(self, directory: str, filename: str) -> None:
-        """Deletes filename from database based on directory table."""
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
-                query = f"""
-                DELETE FROM {directory} 
-                WHERE filename=(?) 
-                """
-                c.execute(query, (filename, ))
-                conn.commit()
-
-    def _insert_in_db(self, 
-                      directory: str, 
-                      date: int,
-                      filename: str,
-                      datatype: str,
-                      description: Optional[str],
-                      source: Optional[str]) -> None:
-        """Inserts filename in database, or updates database if filename exists based on directory table."""
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
-                if self._has_filename(directory, filename):
-                    query = f"""
-                    UPDATE {directory} 
-                    SET date=(?),
-                        filename=(?),
-                        datatype=(?),
-                        description=(?),
-                        source=(?)
-                    """
-                else:
-                    query = f"""
-                    INSERT INTO {directory} 
-                    (date, filename, datatype, description, source) 
-                    VALUES (?,?,?,?,?)
-                    """
-                c.execute(query, (date,
-                                  filename,
-                                  datatype,
-                                  description,
-                                  source))
-                conn.commit()
-
-    def delete(self, directory: str, filename: str) -> None:
-        """
-        Deletes data from structure and database based on the given filename.
-
-        directory : str
-            The directory where the data were stored.
-        filename : str
-            The name under which data were stored.
-        """
-
-        filepath = os.path.join(self.structure[directory], filename)
-
-        if not os.path.exists(filepath):
-            warnings.warn("Filename not found in structure.")
-        else:
-            os.remove(filepath)
-
-        self._delete_from_db(directory, filename)
-        print("Done delete.")
-
-    def move(self, filename: str, source: str, destination: str, overwrite: bool=False, db_only: bool=False) -> None:
-        """
-        Moves data from source to destination. 
-
-        source : str
-            Directory in structure where data are stored.
-        destination : str
-            Directory in structure where data will be moved to.
-        overwrite : bool
-            Defaults to False. Flag for overwriting data in destination.
-        db_only : boll
-            Defaults to False. Flag for making changes only in database in case file does not exist in structure and is just a reference to path.
-        """
-
-        filepathSource = os.path.join(self.structure[source], filename)
-        filepathDestination = os.path.join(self.structure[destination], filename)
-
-        if not self.structure.get(source, False):
-            raise KeyError("Source not found in structure.")
-
-        if not self.structure.get(destination, False):
-            raise KeyError("Destination not found in structure.")
-
-        if not self._has_filename(source, filename): 
-            raise FileNotFoundError("Filename not found in source in database. Cannot get filename info.")
-
-        if self._has_filename(destination, filename) and not overwrite:
-            raise FileExistsError("Filename exists in destination in database. Pass overwrite=True.")
-        else:
-            self._delete_from_db(destination, filename)
-
-        if not db_only:
-            if not os.path.exists(filepathSource):
-                raise FileNotFoundError("Filename not found in source structure.")
-
-            if not os.path.exists(filepathDestination):
-                    shutil.move(filepathSource, self.structure[destination])
+        if is_serialized:
+            if not os.path.exists(storePath):
+                raise FileNotFoundError('Path not found in structure.')
+            if storePath.endswith('.json'):
+                with open(storePath, 'r') as inf:
+                    return json.load(inf)
             else:
-                if not overwrite:
-                    raise FileExistsError("Filename exists in destination structure. Pass overwrite=True.")
-                else:
-                    shutil.move(filepathSource, filepathDestination)
-
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
-                query = f"""
-                SELECT * FROM {source} 
-                WHERE filename=(?)
-                """
-                c.execute(query, (filename, ))
-                results = c.fetchone()
-
-        self._delete_from_db(source, filename)
-        self._insert_in_db(destination, *results)
-        print("Done move.")
-
-    def set_description(self, description: str, directory: str, filename: str) -> None:
-        """
-        Set description for existing filename in database based on directory table.
-
-        Parameters
-        ----------
-        description : str
-            The new description.
-        directory : str
-            Directory table in database where filename is.
-        filename : str
-            Filename in database to update description.
-        """
-        if not self.structure.get(directory, False):
-            raise KeyError('Directory not found in structure.')
-
-        if not self._has_filename(directory, filename):
-            raise FileNotFoundError('Filename not found in database.')
-
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
-                query = f"""
-                UPDATE {directory} 
-                SET description=(?) 
-                WHERE filename=(?)
-                """
-                c.execute(query, (description, filename))
-                conn.commit()
-
-    def set_datatype(self, datatype: str, directory: str, filename: str) -> None:
-        """
-        Set datatype for existing filename in database based on directory table.
-
-        Parameters
-        ----------
-        datatype : str
-            The new datatype.
-        directory : str
-            Directory table in database where filename is.
-        filename : str
-            Filename in database to update description.
-        """
-        if not self.structure.get(directory, False):
-            raise KeyError('Directory not found in structure.')
-
-        if not self._has_filename(directory, filename):
-            raise FileNotFoundError('Filename not found in database.')
-
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
-                query = f"""
-                UPDATE {directory} 
-                SET datatype=(?) 
-                WHERE filename=(?)
-                """
-                c.execute(query, (datatype, filename))
-                conn.commit()
-
-    def set_source(self, source: str, directory: str, filename: str) -> None:
-        """
-        Set source information for existing filename in database based on directory table.
-
-        Parameters
-        ----------
-        source : str
-            The new source information.
-        directory : str
-            Directory table in database where filename is.
-        filename : str
-            Filename in database to update description.
-        """
-        if not self.structure.get(directory, False):
-            raise KeyError('Directory not found in structure.')
-
-        if not self._has_filename(directory, filename):
-            raise FileNotFoundError('Filename not found in database.')
-
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
-                query = f"""
-                UPDATE {directory} 
-                SET source=(?) 
-                WHERE filename=(?)
-                """
-                c.execute(query, (source, filename))
-                conn.commit()
-
-    def rename(self, directory: str, previous: str, new: str) -> None:
-        """
-        Rename data from previous to new name filename.
-
-        Parameters
-        ----------
-        directory : str
-            Directory where the filename is.
-        previous : str
-            Previous name of filename.
-        new : str
-            New name of filename.
-        """
-
-        if not self.structure.get(directory, False):
-            raise KeyError('Directory not found in structure.')
-        
-        filepathPrevious = os.path.join(self.structure[directory], previous)
-        filepathNew = os.path.join(self.structure[directory], new)
-        if not os.path.exists(filepathPrevious):
-            raise FileNotFoundError('Filename not found in structure.')
-        os.rename(filepathPrevious, filepathNew)
-
-        # Get new datatype
-        if '.' in new:
-            datatype = new.split('.')[-1]
+                # data assumed to be pickled
+                with open(storePath, 'rb') as inf:
+                    return pickle.load(inf)
         else:
-            datatype = 'unknown'
-            warnings.warn("Filetype could not be determined for new filename.")
+            return storePath
 
-        if not self._has_filename(directory, previous):
-            raise FileNotFoundError('Filename not found in database.')
+
+    def remove_from_db(self, path: str) -> None:
+        """
+        Removes path from database but not from structure.
+
+        Parameters
+        ----------
+        path : str
+            The path to remove from database.
+        """
+        with contextlib.closing(sqlite3.connect(self.db)) as conn:
+            with contextlib.closing(conn.cursor()) as c:
+                query = """
+                DELETE FROM data 
+                WHERE path=(?)
+                """
+                c.execute(query, (path, ))
+                conn.commit()
+
+                query = """
+                DELETE FROM tags 
+                WHERE path=(?)
+                """
+                c.execute(query, (path, ))
+                conn.commit()
+        print("Done")
+
+
+    def remove_tag(self, tag: str, path: str) -> None:
+        """
+        Removes given tag from given path in database.
+
+        Parameters
+        ----------
+        tag : str
+            The tag to remove from path.
+        path : str
+            The path to remove tag from.
+        """
+        with contextlib.closing(sqlite3.connect(self.db)) as conn:
+            with contextlib.closing(conn.cursor()) as c:
+                query = """
+                DELETE FROM tags
+                WHERE path=(?) AND tag=(?)
+                """
+                c.execute(query, (path, tag))
+                conn.commit()
+        print("Done")
+
+
+    def info(self, path: str) -> None:
+        """
+        Shows information for given path.
+
+        Parameters
+        ----------
+        path : str
+            Directory to show information.
+        """
+
+        if not self._path_exists_in_db(path):
+            raise FileNotFoundError('Path not found in database.')
 
         with contextlib.closing(sqlite3.connect(self.db)) as conn:
             with contextlib.closing(conn.cursor()) as c:
-                query = f"""
-                UPDATE {directory} 
-                SET filename=(?),
-                    datatype=(?) 
-                WHERE filename=(?)
+                cols = ['date', 'datatype', 'description', 'source']
+                query = """
+                SELECT {} FROM data 
+                WHERE path=(?)
+                """.format(','.join(cols))
+                c.execute(query, (path, ))
+                result = c.fetchone()
+
+                query = """
+                SELECT tag FROM tags 
+                WHERE path=(?)
                 """
-                c.execute(query, (new, datatype, previous))
-                conn.commit()
-        print("Done rename.")
+                c.execute(query, (path, ))
+                tags = c.fetchall()
+        tags = [t[0] for t in tags]
+
+        print("path: {}".format(os.path.join(self.structure, path)))
+        for col,value in zip(cols, result): 
+            print(f"{col}: {value}")
+        print("tags: {}".format(', '.join(tags)))
+
 
     def _print_table(self, rows: list) -> None:
         """Prints rich table of given rows. Rows are list of lists or list of tuples."""
         table = Table(box=box.SIMPLE_HEAVY)
         table.add_column("Date", justify="left", no_wrap=True)
-        table.add_column("Filename", justify="left", no_wrap=True)
+        table.add_column("Path", justify="left", no_wrap=True)
         table.add_column("Datatype", justify="left", no_wrap=True)
         table.add_column("Description", justify="left", no_wrap=False)
         table.add_column("Source", justify="left", no_wrap=False)
@@ -619,87 +461,45 @@ class DnRes:
             table.add_row(*list(map(str, row)))
         self.console.print(table)
 
-    def info_directory(self, directory: str) -> None:
-        """
-        Shows information for directory.
-
-        Parameters
-        ----------
-        directory : str
-            Directory to show information.
-        """
-        if not self.structure.get(directory, False):
-            raise KeyError("Directory not found in structure.")
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
-                query = f"SELECT * FROM {directory}"
-                c.execute(query)
-                results = c.fetchall()
-        if not results:
-            print("No information found for directory.")
-        else:
-            self._print_table(results)
-
-    def info_filename(self, directory: str, filename: str) -> None:
-        """
-        Shows information for filename based on directory.
-
-        Parameters
-        ----------
-        directory : str
-            Directory where filename is stored.
-        filename : str
-            Filename to show information.
-        """
-        if not self.structure.get(directory, False):
-            raise KeyError("Directory not found in structure.")
-
-        if not self._has_filename(directory, filename):
-            raise FileNotFoundError('Filename not found in database.')
-
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
-                query = f"""
-                SELECT * FROM {directory} 
-                WHERE filename=(?)
-                """
-                c.execute(query, (filename, ))
-                results = c.fetchone()
-        if not results:
-            print("No information found for directory.")
-        else:
-            table = Table(box=box.SIMPLE_HEAVY)
-            table.add_column("Column", justify="right", style="magenta", no_wrap=True)
-            table.add_column("Value", justify="left", no_wrap=False)
-            columns = ['Date', 'Filename', 'Datatype', 'Description', 'Source']
-            # Make sure only strings are passed to console.print
-            for column, value in zip(columns, list(map(str, results))):
-                table.add_row(column, value)
-            self.console.print(table)
-
-                # self.console.print(f"[bold magenta]{column}[/bold magenta]: {value}")
 
     def __repr__(self):
-        with contextlib.closing(sqlite3.connect(self.db)) as conn:
-            with contextlib.closing(conn.cursor()) as c:
-                dirsRows = dict()
-                for directory in self.structure.keys():
-                    query = f"SELECT * FROM {directory}"
-                    c.execute(query)
-                    results = c.fetchall()
-                    if not results:
-                        results = [['NA']*5]
-                    dirsRows[directory] = results
-
         if not self.description:
             self.console.print("[bold magenta]Description[/bold magenta]: Not available")
         else:
             self.console.print(f"[bold magenta]Description[/bold magenta]: {self.description}")
         print()
-        for directory in self.structure.keys():
-            self.console.print(f"[bold magenta]{directory}[/bold magenta]")
-            self._print_table(dirsRows[directory])
-            print()
-        return ''
+
+        with contextlib.closing(sqlite3.connect(self.db)) as conn:
+            with contextlib.closing(conn.cursor()) as c:
+                query = "SELECT DISTINCT(tag) FROM tags"
+                c.execute(query)
+                tags = c.fetchall()
+        if tags:
+            tags = [t[0] for t in tags]
+            tags.sort()
+
+            tagsRows = dict()
+            cols = ['date', 'path', 'datatype', 'description', 'source']
+            with contextlib.closing(sqlite3.connect(self.db)) as conn:
+                with contextlib.closing(conn.cursor()) as c:
+                    for tag in tags:
+                        tagsRows[tag] = list()
+                        query = "SELECT path FROM tags WHERE tag=(?)"
+                        c.execute(query)
+                        paths = c.fetchall()
+                        paths = [p[0] for p in paths]
+                        for path in paths:
+                            query = "SELECT {} FROM data WHERE path=(?)".format(",".join(cols))
+                            c.execute(query, (path, ))
+                            results = c.fetchall()
+                            tagsRows[tag].append(list(results))
+
+            for tag in tags:
+                self.console.print(f"[bold magenta]{tag}[/bold magenta]")
+                self._print_table(tagsRows[tag])
+                print()
+            return ''
+        else:
+            return "No entries found."
 
 

@@ -225,7 +225,7 @@ class DnRes:
             tag: str,
             path: str, 
             description: Optional[str]=None,
-            source: Optional[str]=None:
+            source: Optional[str]=None):
         """
         Stores specified data. Data is an object. Objects are serialized. Use this method if you want to store lists, dataframes and other similar objects. Note that previously stored data with the same path can be overwritten without warning.
 

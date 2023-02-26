@@ -495,8 +495,8 @@ class DnRes:
                         for path in paths:
                             query = "SELECT {} FROM data WHERE path=(?)".format(",".join(cols))
                             c.execute(query, (path, ))
-                            results = c.fetchall()
-                            tagsRows[tag].append(list(results))
+                            results = c.fetchone()
+                            tagsRows[tag].append(results)
 
             for tag in tags:
                 self.console.print(f"[bold magenta]{tag}[/bold magenta]")

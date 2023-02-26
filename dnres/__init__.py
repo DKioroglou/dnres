@@ -496,6 +496,8 @@ class DnRes:
                             query = "SELECT {} FROM data WHERE path=(?)".format(",".join(cols))
                             c.execute(query, (path, ))
                             results = c.fetchone()
+                            if not results:
+                                results = ("NA", )*len(cols)
                             tagsRows[tag].append(results)
 
             for tag in tags:

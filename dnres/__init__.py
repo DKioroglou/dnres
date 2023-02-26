@@ -140,6 +140,7 @@ class DnRes:
                 CREATE TABLE tags(
                 tag TEXT,
                 path TEXT
+                )
                 """
                 c.execute(query)
                 conn.commit()

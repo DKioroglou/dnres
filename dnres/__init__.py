@@ -254,6 +254,9 @@ class DnRes:
             raise KeyError(f'Unknown serialization method "{serialization}". Valid methods: {serialization_methods}') 
 
         storePath = os.path.join(self.structure, path)
+        storeDir = os.path.dirname(storePath)
+        if not os.path.exists(storeDir):
+            raise FileNotFoundError(f'Storing directory "{storeDir}" does not exist.')
 
         if serialization == 'json':
             with open(storePath, 'w') as outf:

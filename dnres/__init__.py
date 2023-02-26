@@ -489,7 +489,7 @@ class DnRes:
                     for tag in tags:
                         tagsRows[tag] = list()
                         query = "SELECT path FROM tags WHERE tag=(?)"
-                        c.execute(query)
+                        c.execute(query, (tag, ))
                         paths = c.fetchall()
                         paths = [p[0] for p in paths]
                         for path in paths:

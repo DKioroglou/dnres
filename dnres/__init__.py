@@ -211,11 +211,11 @@ class DnRes:
         """Inserts tagged path in database."""
         with contextlib.closing(sqlite3.connect(self.db)) as conn:
             with contextlib.closing(conn.cursor()) as c:
-                    query = """
-                    INSERT INTO tags 
-                    (tag, path) 
-                    VALUES (?,?)
-                    """
+                query = """
+                INSERT INTO tags 
+                (tag, path) 
+                VALUES (?,?)
+                """
                 c.execute(query, (tag, path))
                 conn.commit()
 

@@ -7,7 +7,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 with codecs.open(os.path.join(here, "README.md"), encoding="utf-8") as fh:
     long_description = "\n" + fh.read()
 
-VERSION = '0.1.1'
+VERSION = '0.2.0'
 DESCRIPTION = 'Managing and sharing data and results of analysis.'
 LONG_DESCRIPTION = 'A package that facilitates modular type of data analysis providing a tagging system for managing generated data and resuls.'
 

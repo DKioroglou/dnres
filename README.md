@@ -8,7 +8,7 @@
 
 ### Configuration file
 
-`dnres` requires a configuration file. In this file, three sections should be specified: **PATHS**, and **INFO**. In the section **PATHS** the keys **structure** and **database** are mandatory. In the section **INFO** the key **description** is mandatory.
+`dnres` requires a configuration file. In this file, two sections should be specified: **PATHS**, and **INFO**. In the section **PATHS** the keys **structure** and **database** are mandatory. In the section **INFO** the key **description** is mandatory.
 
 Example of configuration file with filename `config.ini`:
 ```python
@@ -47,7 +47,7 @@ res.store(data=x,
           source='script_01.py'
          )
 ```
-Valid serializations are `.json` or `.pickle`.
+Valid serializations are `json` or `pickle`. Serialization if taken from the extension of the path (`.json` or `.pickle`).
 
 
 Example of loading stored data from `script_01.py` in `script_02.py`:
@@ -57,10 +57,10 @@ from dnres import DnRes
 
 res = DnRes('config.ini')
 
-# Show available stored data
+# Show available tagged data
 print(res)
 
-# Load stored data
+# Load tagged data
 x = res.load('dir1/mylist.pickle')
 ```
 

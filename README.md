@@ -2,22 +2,19 @@
 
 [![Documentation Status](https://readthedocs.org/projects/pip/badge/?version=stable)](https://pip.pypa.io/en/stable/?badge=stable)
 
-`dnres` is a python package for managing and sharing data and results generated from any type of data analysis. It facilitates modular type of analysis by allowing easy storing and loading of python objects or files across different python scripts.
+`dnres` is a python package for managing and sharing data and results generated from any type of data analysis. It is a tagging system that facilitates modular type of analysis by allowing easy tagging, storing and loading of python objects or files across different python scripts.
 
 ## Usage
 
 ### Configuration file
 
-`dnres` requires a configuration file. In this file, three sections should be specified: **STRUCTURE**, **DATABASE** and **INFO**. 
+`dnres` requires a configuration file. In this file, three sections should be specified: **PATHS**, and **INFO**. In the section **PATHS** the keys **structure** and **database** are mandatory. In the section **INFO** the key **description** is mandatory.
 
 Example of configuration file with filename `config.ini`:
 ```python
-[STRUCTURE]
-dir1 = foo/bar
-dir2 = foo/foo/bar
-
-[DATABASE]
-filename = data.db
+[PATHS]
+structure = foo/bar
+database = foo/foo/bar
 
 [INFO]
 description = "This is the description of the analysis related to the data and results."
@@ -29,14 +26,6 @@ from dnres import DnRes
 
 res = DnRes('config.ini')
 ```
-
-Upon instantiation, the following are checked/performed:
-
-* STRUCTURE section exists and it's not empty.  
-* Paths in STRUCTURE exist. If not, they are created.  
-* DATABASE section and filename key exist. Otherwise, database gets initialized.  
-* INFO section exists and description is provided. If not, user gets a warning.
-
 
 ### Storing and loading of python objects
 
@@ -52,13 +41,14 @@ x = [1,2,3]
 
 # Store data to use in another analytical script
 res.store(data=x,
-          directory='dir1',
-          filename='x_var.json',
-          description='List with three numbers',
-          source='script_01.py',
-          serialization='json'
+          tag='variousLists',
+          path='dir1/mylist.pickle',
+          description='List with three numbers.',
+          source='script_01.py'
          )
 ```
+Valid serializations are `.json` or `.pickle`.
+
 
 Example of loading stored data from `script_01.py` in `script_02.py`:
 
@@ -71,33 +61,24 @@ res = DnRes('config.ini')
 print(res)
 
 # Load stored data
-x = res.load('dir1', 'x_var.json')
+x = res.load('dir1/mylist.pickle')
 ```
 
-### Storing and loading of files
+### Tagging of files or directories
 
-Example of storing a `.csv` file in analytical script `script_01.py`
+Tagging is only available for files or directories that are inside the `structure`.
+Example of tagging a `.csv` file in analytical script `script_01.py`
 
 ```python
 from dnres import DnRes
 
 res = DnRes('config.ini')
 
-# Example of saving a pandas dataframe to csv
-filepath = 'foo.csv'
-df.to_csv(filepath, sep='\t')
-
-# file will be moved to corresponding path in STRUCTURE
-res.store(data=filepath,
-          directory='dir2',
-          filename='foo.csv',
-          description='A pandas dataframe stored as csv.',
-          source='script_01.py',
-          isfile=True
-         )
+filepath = 'dir1/foo.csv'
+res.tag('someTag', filepath)
 ```
 
-Load stored `.csv` file in analytical script `script_02.py`
+Load in `script_02.py` the `.csv` filepath that was tagged in `script_01.py`.
 
 ```python
 from dnres import DnRes
@@ -105,8 +86,8 @@ import pandas as pd
 
 res = DnRes('config.ini')
 
-# load() method returns string when stored data is not python object.
-filepath = res.load('dir2', 'foo.csv')
+# load() method returns absolute filepath when stored data is not python object.
+filepath = res.load('dir1/foo.csv')
 df = pd.read_csv(filepath, sep='\t')
 ```
 

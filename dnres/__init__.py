@@ -275,33 +275,21 @@ class DnRes:
         print('Data stored.')
 
     
-    def tag(self, tag: str, path: str) -> None:
-        """
-        Add tag for given path.
-
-        Parameters
-        ----------
-        tag : str
-            Tag to add for path. 
-        path : str
-            Path to be tagged.
-        """
-        if not self._path_has_tag(path, tag):
-            self._register_tag_in_db(tag, path)
-
-
-    def set_info(self, 
-            path: str, 
+    def tag(self, 
+            path: str,
+            tag: Optional[str]=None, 
             datatype: Optional[str]=None,
             description: Optional[str]=None,
-            source: Optional[str]=None):
+            source: Optional[str]=None) -> None:
         """
-        Add or update info for path if info is not none.
+        Adds tag and/or info for given path.
 
         Parameters
         ----------
         path : str
-            Path to update or add info.
+            Path to be tagged.
+        tag : str
+            Defaults to None. Tag to add for path. 
         datatype : str, optional 
             Defaults to None. Datatype of path. Must be provided if path does not exist in database.
         description : str, optional 
@@ -309,6 +297,9 @@ class DnRes:
         source : str, optional 
             Defaults to None. Source of path. Must be provided if path does not exist in database.
         """
+        if tag:
+            if not self._path_has_tag(path, tag):
+                self._register_tag_in_db(tag, path)
 
         if self._path_exists_in_db(path):
             with contextlib.closing(sqlite3.connect(self.db)) as conn:

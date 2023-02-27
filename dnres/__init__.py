@@ -226,15 +226,7 @@ class DnRes:
             tag: str,
             path: str, 
             description: Optional[str]=None,
-<<<<<<< HEAD
-            source: Optional[str]=None,
-            serialization: Optional[str]=None,
-            isfile: bool=False,
-            register: bool=False,
-            overwrite: bool=False) -> None:
-=======
             source: Optional[str]=None):
->>>>>>> dev
         """
         Stores specified data. Data is an object. Objects are serialized. Use this method if you want to store lists, dataframes and other similar objects. Note that previously stored data with the same path can be overwritten without warning.
 
@@ -248,19 +240,8 @@ class DnRes:
             The path to store data. It should include the filename and have extension json or pickle.
         description : str, optional
             Defaults to None. Short description about the data.
-<<<<<<< HEAD
-        serialization : str, optional
-            Defaults to None. Valid serialization methods : json | pickle
-        isfile : bool
-            Defaults to False. Pass True in case data is path to a file.
-        register : bool
-            Defaults to False. Pass True in case you want to just register in the database.
-        overwrite : bool
-            Defaults to False. Boolean for overwritting previous data with same filename.
-=======
         source : str, optional
             Defaults to None. Source of generated data. If None, the name of the calling script will be considered.
->>>>>>> dev
         """
 
         date = int(datetime.today().strftime('%Y%m%d'))
@@ -291,61 +272,10 @@ class DnRes:
         if not self._path_has_tag(path, tag):
             self._register_tag_in_db(tag, path)
 
-<<<<<<< HEAD
-            if serialization == 'json':
-                with open(storePath, 'w') as outf:
-                    json.dump(data, outf)
-            elif serialization == 'pickle':
-                with open(storePath, 'wb') as outf:
-                    pickle.dump(data, outf)
-        else:
-            # data is assumed a path to file
-            if not isinstance(data, str):
-                raise TypeError('Data is not a file. Apply serialization method.')
-            if not isfile:
-                raise Exception('If passed string is filepath pass isfile=True. Otherwise, pass serialization method.')
-            if not os.path.exists(data):
-                raise FileNotFoundError(f'File "{data}" was not found.')
-
-            if not register:
-                if os.path.exists(os.path.join(self.structure[directory], filename)) and not overwrite:
-                    raise FileExistsError(f'Filename "{filename}" exists in "{directory}". Use overwrite=True.')
-
-                if overwrite:
-                    os.remove(os.path.join(self.structure[directory], filename))
-
-                if filename == os.path.basename(data):
-                    shutil.move(data, self.structure[directory])
-                else:
-                    # Rename data file to dnres.tmp
-                    newDataPath = data.replace(os.path.basename(data), 'dnres.tmp')
-                    os.rename(data, newDataPath)
-
-                    # Move renamed data to structure
-                    if os.path.exists(os.path.join(self.structure[directory], 'dnres.tmp')):
-                        os.remove(os.path.join(self.structure[directory], 'dnres.tmp'))
-                    shutil.move(newDataPath, self.structure[directory])
-
-                    # Rename data as filename
-                    previousPath = os.path.join(self.structure[directory], 'dnres.tmp')
-                    newPath = os.path.join(self.structure[directory], filename)
-                    os.rename(previousPath, newPath)
-
-        self._insert_in_db(directory, 
-                           date,
-                           filename,
-                           datatype,
-                           description,
-                           source)
-        print('Done store.')
-
-    def load(self, directory: str, filename: str) -> Any:
-=======
         print('Data stored.')
 
     
     def tag(self, tag: str, path: str) -> None:
->>>>>>> dev
         """
         Add tag for given path.
 

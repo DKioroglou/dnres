@@ -384,7 +384,7 @@ class DnRes:
         print("Done")
 
 
-    def remove_tag(self, tag: str, path: str) -> None:
+    def remove_tag(self, tag: str, path: Optional[str]=None) -> None:
         """
         Removes given tag from given path in database.
 
@@ -392,16 +392,46 @@ class DnRes:
         ----------
         tag : str
             The tag to remove from path.
-        path : str
-            The path to remove tag from.
+        path : str, optional
+            Defaults to None, The path to remove tag from. If omitted the tag is removed from all paths.
+        """
+        with contextlib.closing(sqlite3.connect(self.db)) as conn:
+            with contextlib.closing(conn.cursor()) as c:
+                if path:
+                    query = """
+                    DELETE FROM tags
+                    WHERE path=(?) AND tag=(?)
+                    """
+                    c.execute(query, (path, tag))
+                else:
+                    query = """
+                    DELETE FROM tags
+                    WHERE tag=(?)
+                    """
+                    c.execute(query, (tag, ))
+                conn.commit()
+        print("Done")
+
+
+    def rename_tag(self, old: str, new: str) -> None:
+        """
+        Rename existing tag from old name to new name.
+
+        Parameters
+        ----------
+        old : str
+            Existing name of tag.
+        new : str
+            New name of tag.
         """
         with contextlib.closing(sqlite3.connect(self.db)) as conn:
             with contextlib.closing(conn.cursor()) as c:
                 query = """
-                DELETE FROM tags
-                WHERE path=(?) AND tag=(?)
+                UPDATE tags
+                SET tag=(?) 
+                WHERE tag=(?)
                 """
-                c.execute(query, (path, tag))
+                c.execute(query, (new, old))
                 conn.commit()
         print("Done")
 
